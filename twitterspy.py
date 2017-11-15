@@ -1,5 +1,5 @@
-from __future__ import print_function
 from datetime import datetime
+from daemonize import Daemonize
 import tweepy
 import requests
 import os
@@ -26,6 +26,7 @@ log_filename = log_location + '/twitterspy.log'
 handler = logging.handlers.TimedRotatingFileHandler(log_filename, when='midnight', backupCount=5)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+keep_fds = [handler.stream.fileno()]
 
 # helper func that prints to stderr
 def eprint(*args, **kwargs):
@@ -110,7 +111,7 @@ class spyStreamListener(tweepy.StreamListener):
         logger.info("    POST result: {}".format(r.status_code))
 
 
-if __name__ == '__main__':
+def main():
     ts = Twitterspy()
     mySpyListener = spyStreamListener()
 
@@ -128,3 +129,7 @@ if __name__ == '__main__':
     # start filtering tweets via listener
     spy = tweepy.Stream(auth = ts.api.auth, listener=mySpyListener)
     spy.filter(follow=target_accounts)
+
+
+daemon = Daemonize(app="twitterspy", pid=os.environ['TWITTERSPY_PID'], action=main, keep_fds=keep_fds)
+daemon.start()
