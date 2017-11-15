@@ -21,3 +21,9 @@ Configuration is via environment variables.
 * `PUSHOVER_APP_KEY` = Pushover application key (https://pushover.net/apps/build)
 * `PUSHOVER_DEVICE` = Pushover device name
 * `PUSHOVER_USER_KEY` = Pushover user key
+
+## Usage Notes
+
+The first time you run this script, use the `--nodaemon` flag to run it in the foreground so
+you can complete the Twitter OAUTH process. Once the script is authorized, subsequent
+invocations can be run without the `--nodaemon` flag.

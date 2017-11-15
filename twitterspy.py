@@ -9,8 +9,14 @@ import re
 import pendulum
 import logging
 import logging.handlers
+import argparse
 
 SCRIPTPATH = os.path.dirname(os.path.abspath(__file__))
+
+# handle command line args
+parser = argparse.ArgumentParser()
+parser.add_argument("--nodaemon", help="run in foreground", action="store_true")
+args = parser.parse_args()
 
 # convert timestamp to Pacific time
 def local_time(record, datefmt=None):
@@ -44,6 +50,7 @@ class Twitterspy:
             with open(SCRIPTPATH + '/twitterspy.auth', 'r') as f:
                 auth_cache = json.load(f)
         except IOError:
+            logger.info("Twitter authorization required, please run this script with the --nodaemon flag")
             auth_cache = self.create_auth_session()
 
         self.auth.set_access_token(auth_cache['key'], auth_cache['secret'])
@@ -131,5 +138,5 @@ def main():
     spy.filter(follow=target_accounts)
 
 
-daemon = Daemonize(app="twitterspy", pid=os.environ['TWITTERSPY_PID'], action=main, keep_fds=keep_fds)
+daemon = Daemonize(app="twitterspy", pid=os.environ['TWITTERSPY_PID'], action=main, keep_fds=keep_fds, foreground=args.nodaemon)
 daemon.start()
