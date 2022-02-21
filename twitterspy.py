@@ -47,45 +47,14 @@ class Twitterspy:
         self.do_auth()
 
     def do_auth(self):
-        self.auth = tweepy.OAuthHandler(
-            os.environ['TWITTER_OAUTH_TOKEN'],
-            os.environ['TWITTER_OAUTH_SECRET'])
-
-        try:
-            with open(SCRIPTPATH + '/twitterspy.auth', 'r') as f:
-                auth_cache = json.load(f)
-        except IOError:
-            logger.info('Twitter authorization required, please run this '
-                        'script with the --nodaemon flag')
-            auth_cache = self.create_auth_session()
-
-        self.auth.set_access_token(auth_cache['key'], auth_cache['secret'])
-        self.api = tweepy.API(self.auth)
-
-    def create_auth_session(self):
-        try:
-            redirect_url = self.auth.get_authorization_url()
-        except tweepy.TweepError:
-            eprint('Error! Failed to get request token.')
-
-        print(f"Open this URL in a web browser: {redirect_url}")
-        verifier = input('Enter verification code here: ')
-
-        try:
-            self.auth.get_access_token(verifier)
-        except tweepy.TweepError:
-            eprint('Error! Failed to get access token.')
-
-        auth_cache = {
-            'key': self.auth.access_token,
-            'secret': self.auth.access_token_secret
-        }
-        with open(SCRIPTPATH + '/twitterspy.auth', 'w') as f:
-            json.dump(auth_cache, f)
-        return auth_cache
+        auth = tweepy.OAuthHandler(os.environ['TWITTER_CONSUMER_KEY'],
+                                   os.environ['TWITTER_CONSUMER_SECRET'])
+        auth.set_access_token(os.environ['TWITTER_ACCESS_TOKEN'],
+                              os.environ['TWITTER_ACCESS_SECRET'])
+        self.api = tweepy.API(auth)
 
 
-class spyStreamListener(tweepy.StreamListener):
+class spyStream(tweepy.Stream):
 
     def set_keywords(self, keywords):
         self.keywords = keywords
@@ -94,13 +63,16 @@ class spyStreamListener(tweepy.StreamListener):
         self.target_accounts = accounts
 
     def on_status(self, status):
-        if status.author.id_str in self.target_accounts:
-            logger.info(f"@{status.author.screen_name}: {status.text}")
-            reply_id = getattr(status, 'in_reply_to_status_id_str', None)
-            if reply_id is None:
-                self.check_for_keywords(status)
-            else:
-                logger.info(f"    in reply to {status.in_reply_to_status_id_str}... skipping")
+        # check if the author of this tweet is an account we are targeting
+        if status.author.id_str not in self.target_accounts:
+            return
+
+        logger.info(f"@{status.author.screen_name}: {status.text}")
+        reply_id = getattr(status, 'in_reply_to_status_id_str', None)
+        if reply_id is None:
+            self.check_for_keywords(status)
+        else:
+            logger.info(f"    in reply to {status.in_reply_to_status_id_str}... skipping")
 
     def on_error(self, status_code):
         if status_code == 420:
@@ -110,10 +82,10 @@ class spyStreamListener(tweepy.StreamListener):
         logger.info('    checking for keywords...')
         text = status.text
         for keyword in self.keywords:
-            if re.search(r'\b' + keyword + r'\b', text, re.IGNORECASE):
+            if re.search(keyword, text, re.IGNORECASE):
                 self.send_notification(
                     f"@{status.author.screen_name}: {text}",
-                    f"flight deal for {keyword}",
+                    f"twitter alert for {keyword}",
                     f"http://twitter.com/statuses/{status.id_str}")
                 return
 
@@ -132,13 +104,17 @@ class spyStreamListener(tweepy.StreamListener):
 
 def main():
     ts = Twitterspy()
-    mySpyListener = spyStreamListener()
+    mySpyListener = spyStream(
+        consumer_key=os.environ['TWITTER_CONSUMER_KEY'],
+        consumer_secret=os.environ['TWITTER_CONSUMER_SECRET'],
+        access_token=os.environ['TWITTER_ACCESS_TOKEN'],
+        access_token_secret=os.environ['TWITTER_ACCESS_SECRET'])
 
     # get user ids from screen names
     logger.info(f"Following [{os.environ['TWITTERSPY_FOLLOW']}]...")
     target_accounts = []
     for account in os.environ['TWITTERSPY_FOLLOW'].split(','):
-        u = ts.api.get_user(account)
+        u = ts.api.get_user(screen_name=account)
         target_accounts.append(u.id_str)
     mySpyListener.set_target_accounts(target_accounts)
 
@@ -146,8 +122,7 @@ def main():
     logger.info(f"Listening for tweets containing [{os.environ['TWITTERSPY_KEYWORDS']}]...")
 
     # start filtering tweets via listener
-    spy = tweepy.Stream(auth=ts.api.auth, listener=mySpyListener)
-    spy.filter(follow=target_accounts)
+    mySpyListener.filter(follow=target_accounts)
 
 
 daemon = Daemonize(
