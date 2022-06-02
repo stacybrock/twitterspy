@@ -27,7 +27,7 @@ def local_time(record, datefmt=None):
 # set up logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 formatter.formatTime = local_time
 log_location = os.environ.get('TWITTERSPY_LOG_DIR') if os.environ.get('TWITTERSPY_LOG_DIR') else '/tmp/'
 log_filename = log_location + '/twitterspy.log'
